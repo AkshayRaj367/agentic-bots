@@ -1,6 +1,11 @@
-require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const axios = require('axios');
+
+const WEBHOOK_URL = process.env.WEBHOOK_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN;
+
+console.log('Token loaded:', BOT_TOKEN ? 'YES ✅' : 'NO ❌');
+console.log('Webhook loaded:', WEBHOOK_URL ? 'YES ✅' : 'NO ❌');
 
 const client = new Client({
   intents: [
@@ -10,24 +15,18 @@ const client = new Client({
   ]
 });
 
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
-const BOT_TOKEN = process.env.BOT_TOKEN;
-
 client.on('ready', () => {
   console.log(`✅ Bot is online as ${client.user.tag}`);
 });
 
 client.on('messageCreate', async (message) => {
-  // Ignore bot messages to prevent infinite loop
   if (message.author.bot) return;
-  
-  // Only trigger when message starts with !review
   if (!message.content.startsWith('!review')) return;
 
   const code = message.content.replace('!review', '').trim();
-  
+
   if (!code) {
-    message.reply('Please send code after !review\nExample: `!review print("hello")`');
+    message.reply('Please send code after !review');
     return;
   }
 
@@ -36,18 +35,23 @@ client.on('messageCreate', async (message) => {
   try {
     await axios.post(WEBHOOK_URL, { content: code });
   } catch (error) {
-    message.reply('❌ Error connecting to n8n. Make sure it is running!');
+    console.error('Webhook error:', error.message);
+    message.reply('❌ Error connecting to n8n!');
   }
 });
 
-client.login(BOT_TOKEN);
-
+// Keep Render alive
 const http = require('http');
 http.createServer((req, res) => {
   res.write('Bot is running!');
   res.end();
 }).listen(process.env.PORT || 3000);
+
+// Ping every 10 minutes
 const https = require('https');
 setInterval(() => {
   https.get('https://agentic-bots.onrender.com');
-}, 600000); // pings every 10 minutes
+  console.log('✅ Ping sent');
+}, 600000);
+
+client.login(BOT_TOKEN);
