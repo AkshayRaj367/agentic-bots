@@ -47,4 +47,7 @@ http.createServer((req, res) => {
   res.write('Bot is running!');
   res.end();
 }).listen(process.env.PORT || 3000);
-
+const https = require('https');
+setInterval(() => {
+  https.get('https://agentic-bots.onrender.com');
+}, 600000); // pings every 10 minutes
