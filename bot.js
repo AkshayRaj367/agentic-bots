@@ -54,4 +54,6 @@ setInterval(() => {
   console.log('✅ Ping sent');
 }, 600000);
 
-client.login(BOT_TOKEN);
+client.login(BOT_TOKEN).catch(err => {
+  console.error('❌ Login failed:', err.message);
+});
