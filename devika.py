@@ -4,8 +4,8 @@
 """
 from gevent import monkey
 monkey.patch_all()
-from src.init import init_devika
-init_devika()
+from src.init import init_imposter
+init_imposter()
 
 
 from flask import Flask, request, jsonify, send_file
@@ -26,11 +26,14 @@ from src.llm import LLM
 
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": # Change the origin to your frontend URL
-                             [
-                                 "https://localhost:3000",
-                                 "http://localhost:3000",
-                                 ]}}) 
+CORS(app, resources={r"/*": {"origins": [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+]}})
 app.register_blueprint(project_bp)
 socketio.init_app(app)
 
@@ -205,5 +208,5 @@ def status():
     return jsonify({"status": "server is running!"})
 
 if __name__ == "__main__":
-    logger.info("Devika is up and running!")
+    logger.info("Imposter 101 is up and running!")
     socketio.run(app, debug=False, port=1337, host="0.0.0.0")

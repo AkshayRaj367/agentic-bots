@@ -26,7 +26,7 @@ class ProjectManager:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         return {
-            "from_devika": True,
+            "from_imposter": True,
             "message": None,
             "timestamp": timestamp
         }
@@ -58,7 +58,7 @@ class ProjectManager:
                 session.add(project_state)
                 session.commit()
 
-    def add_message_from_devika(self, project: str, message: str):
+    def add_message_from_imposter(self, project: str, message: str):
         new_message = self.new_message()
         new_message["message"] = message
         emit_agent("server-message", {"messages": new_message})
@@ -67,7 +67,7 @@ class ProjectManager:
     def add_message_from_user(self, project: str, message: str):
         new_message = self.new_message()
         new_message["message"] = message
-        new_message["from_devika"] = False
+        new_message["from_imposter"] = False
         emit_agent("server-message", {"messages": new_message})
         self.add_message_to_project(project, new_message)
 
@@ -84,7 +84,7 @@ class ProjectManager:
             if project_state:
                 message_stack = json.loads(project_state.message_stack_json)
                 for message in reversed(message_stack):
-                    if not message["from_devika"]:
+                    if not message["from_imposter"]:
                         return message
             return None
 
@@ -94,16 +94,16 @@ class ProjectManager:
             if project_state:
                 message_stack = json.loads(project_state.message_stack_json)
                 if message_stack:
-                    return not message_stack[-1]["from_devika"]
+                    return not message_stack[-1]["from_imposter"]
             return False
 
-    def get_latest_message_from_devika(self, project: str):
+    def get_latest_message_from_imposter(self, project: str):
         with Session(self.engine) as session:
             project_state = session.query(Projects).filter(Projects.project == project).first()
             if project_state:
                 message_stack = json.loads(project_state.message_stack_json)
                 for message in reversed(message_stack):
-                    if message["from_devika"]:
+                    if message["from_imposter"]:
                         return message
             return None
 
@@ -120,8 +120,8 @@ class ProjectManager:
             if project_state:
                 message_stack = json.loads(project_state.message_stack_json)
                 for message in message_stack:
-                    if message["from_devika"]:
-                        formatted_messages.append(f"Devika: {message['message']}")
+                    if message["from_imposter"]:
+                        formatted_messages.append(f"Imposter 101: {message['message']}")
                     else:
                         formatted_messages.append(f"User: {message['message']}")
 

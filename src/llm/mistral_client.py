@@ -1,5 +1,5 @@
 import os
-from mistralai import Mistral, UserMessage  # Updated import from mistralai
+from mistralai.client import Mistral
 
 from src.config import Config
 
@@ -13,9 +13,9 @@ class MistralAi:
     def inference(self, model_id: str, prompt: str) -> str:
         print("prompt", prompt.strip())
         # Use the new method for chat completion
-        chat_response = self.client.chat.complete(
+        chat_response = self.client.chat(
             model=model_id,  # Model ID remains the same
-            messages=[  # Update to use dictionary format for messages
+            messages=[  # Use dictionary format for messages
                 {
                     "role": "user",
                     "content": prompt.strip()

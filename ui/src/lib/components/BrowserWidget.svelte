@@ -21,7 +21,7 @@
       type="text"
       id="browser-url"
       class="flex-grow h-7 text-xs rounded-lg p-2 overflow-x-auto bg-browser-window-search text-browser-window-foreground"
-      placeholder="devika://newtab"
+      placeholder="imposter://newtab"
       value={$agentState?.browser_session.url || ""}
     />
   </div>

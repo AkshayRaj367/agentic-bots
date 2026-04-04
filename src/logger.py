@@ -7,7 +7,7 @@ from src.config import Config
 
 
 class Logger:
-    def __init__(self, filename="devika_agent.log"):
+    def __init__(self, filename="imposter_agent.log"):
         config = Config()
         logs_dir = config.get_logs_dir()
         self.logger = LogInit(pathName=logs_dir + "/" + filename, console=True, colors=True, encoding="utf-8")
