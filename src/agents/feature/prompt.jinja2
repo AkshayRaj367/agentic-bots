@@ -20,38 +20,37 @@ Read the user's feature request carefully. Think step-by-step.
 Rules:
 - You should write clean and documented code.
 - The code should work on the first try without any errors or bugs.
-- Choose the library or dependency you know best.
 - The extension used for the Markdown code blocks should be accurate.
-- You should respond with the complete rewritten code with no implementation detail left. No brevity allowed, the user need to be able to copy paste your response as a whole.
+- Modify only files that are relevant to the user's request.
+- Prefer updating existing files from Full Code instead of introducing new files.
+- Keep unchanged files out of the response.
+- Keep file paths relative to the project root.
+- For HTML/CSS UI tweaks, prioritize updating existing index.html (and existing CSS files if present).
 
 Your response should only be in the following Markdown format:
 
 ~~~
+File: `index.html`:
+```html
+<!-- updated code -->
+```
+
+File: `styles.css`:
+```css
+/* updated code */
+```
+
+File: `script.js`:
+```js
+// updated code
+```
+
 File: `main.py`:
 ```py
-print("Example")
-```
-
-File: `src/example.rs`:
-```rs
-fn example() {
-    println!("Example");
-}
-```
-
-File: `nested/directory/example/code.py`:
-```py
-print("Example")
-```
-
-File: `README.md`
-```md
-# Example
-
-This is an example.
+# updated code
 ```
 ~~~
 
-Any response other than this format will be rejected. You should not refuse to complete the task, you should try your absolute best and if there's any implementation detail that's impossible to complete, you should write a comment in the code explaining why it's impossible to complete. The refusal is only a last resort, it should never happen.
+Any response other than this format will be rejected. Include only the files that you actually changed.
 
 Your response should start with "~~~" and end with "~~~" just like the example format provided. Never provide any explanation or context inside the response, only the filenames and the code in the format provided. Do not leave any "Note".

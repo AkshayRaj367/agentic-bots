@@ -63,7 +63,10 @@ class Agent:
 
         self.project_manager = ProjectManager()
         self.agent_state = AgentState()
-        self.engine = search_engine
+        normalized_engine = (search_engine or "").strip().lower()
+        if normalized_engine not in {"bing", "google", "duckduckgo"}:
+            normalized_engine = "duckduckgo"
+        self.engine = normalized_engine
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
     async def open_page(self, project_name, url):
@@ -101,13 +104,21 @@ class Agent:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            web_search.search(query)
+            try:
+                web_search.search(query)
+                link = web_search.get_first_link()
+            except Exception as e:
+                self.logger.warning(f"Search failed for query '{query}': {e}")
+                continue
 
-            link = web_search.get_first_link()
             print("\nLink :: ", link, '\n')
             if not link:
                 continue
-            browser, raw, data = loop.run_until_complete(self.open_page(project_name, link))
+            try:
+                browser, raw, data = loop.run_until_complete(self.open_page(project_name, link))
+            except Exception as e:
+                self.logger.warning(f"Browser fetch failed for link '{link}': {e}")
+                continue
             emit_agent("screenshot", {"data": raw, "project_name": project_name}, False)
             results[query] = self.formatter.execute(data, project_name)
 
@@ -302,17 +313,24 @@ class Agent:
         research = self.researcher.execute(plan, self.collected_context_keywords, project_name=project_name)
         print("\nresearch :: ", research, '\n')
 
-        queries = research["queries"]
+        queries = research.get("queries", []) if isinstance(research, dict) else []
+        queries = [q.strip() for q in queries if isinstance(q, str) and q.strip()]
         queries_combined = ", ".join(queries)
-        ask_user = research["ask_user"]
 
-        if (queries and len(queries) > 0) or ask_user != "":
+        ask_user = ""
+        if isinstance(research, dict):
+            ask_user = (research.get("ask_user") or "").strip()
+
+        if ask_user.lower() in {"none", "null", "n/a", "na", "no"}:
+            ask_user = ""
+
+        if queries or ask_user:
             self.project_manager.add_message_from_imposter(
                 project_name,
                 f"I am browsing the web to research the following queries: {queries_combined}."
                 f"\n If I need anything, I will make sure to ask you."
             )
-        if not queries and len(queries) == 0:
+        if not queries:
             self.project_manager.add_message_from_imposter(
                 project_name,
                 "I think I can proceed without searching the web."
@@ -320,12 +338,14 @@ class Agent:
 
         ask_user_prompt = "Nothing from the user."
 
-        if ask_user != "" and ask_user is not None:
+        if ask_user:
             self.project_manager.add_message_from_imposter(project_name, ask_user)
             self.agent_state.set_agent_active(project_name, False)
             got_user_query = False
+            max_wait_seconds = 90
+            waited_seconds = 0
 
-            while not got_user_query:
+            while not got_user_query and waited_seconds < max_wait_seconds:
                 self.logger.info("Waiting for user query...")
 
                 latest_message_from_user = self.project_manager.get_latest_message_from_user(project_name)
@@ -337,6 +357,13 @@ class Agent:
                     got_user_query = True
                     self.project_manager.add_message_from_imposter(project_name, "Thanks! 🙌")
                 time.sleep(5)
+                waited_seconds += 5
+
+            if not got_user_query:
+                self.project_manager.add_message_from_imposter(
+                    project_name,
+                    "I did not receive additional input, so I am continuing with reasonable defaults."
+                )
 
         self.agent_state.set_agent_active(project_name, True)
 

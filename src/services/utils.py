@@ -3,6 +3,7 @@ import sys
 import time
 from functools import wraps
 import json
+import re
 
 from src.socket_instance import emit_agent
 
@@ -20,8 +21,6 @@ def retry_wrapper(func):
             time.sleep(2)
         print("Maximum 5 attempts reached. try other models")
         emit_agent("info", {"type": "error", "message": "Maximum attempts reached. model keeps failing."})
-        sys.exit(1)
-
         return False
     return wrapper
 
@@ -29,58 +28,52 @@ def retry_wrapper(func):
 class InvalidResponseError(Exception):
     pass
 
+
+def _extract_json_candidates(text: str):
+    candidates = [text]
+
+    # Common model wrappers: ```json ... ``` and ~~~ ... ~~~
+    fenced_blocks = re.findall(r"(?:```|~~~)(?:json)?\s*([\s\S]*?)(?:```|~~~)", text, flags=re.IGNORECASE)
+    candidates.extend(fenced_blocks)
+
+    decoder = json.JSONDecoder()
+    for candidate in list(candidates):
+        s = candidate.strip()
+        for i, ch in enumerate(s):
+            if ch not in "[{":
+                continue
+            try:
+                parsed, end = decoder.raw_decode(s[i:])
+                if parsed is not None:
+                    yield parsed
+                tail = s[i + end :].strip()
+                if tail:
+                    for line in tail.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            yield json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+            except json.JSONDecodeError:
+                continue
+
 def validate_responses(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         args = list(args)
         response = args[1]
-        response = response.strip()
-
-        try:
-            response = json.loads(response)
-            print("first", type(response))
+        if isinstance(response, (dict, list)):
             args[1] = response
             return func(*args, **kwargs)
 
-        except json.JSONDecodeError:
-            pass
-
-        try:
-            response = response.split("```")[1]
-            if response:
-                response = json.loads(response.strip())
-                print("second", type(response))
-                args[1] = response
-                return func(*args, **kwargs)
-
-        except (IndexError, json.JSONDecodeError):
-            pass
-
-        try:
-            start_index = response.find('{')
-            end_index = response.rfind('}')
-            if start_index != -1 and end_index != -1:
-                json_str = response[start_index:end_index+1]
-                try:
-                    response = json.loads(json_str)
-                    print("third", type(response))
-                    args[1] = response
-                    return func(*args, **kwargs)
-
-                except json.JSONDecodeError:
-                    pass
-        except json.JSONDecodeError:
-            pass
-
-        for line in response.splitlines():
-            try:
-                response = json.loads(line)
-                print("fourth", type(response))
-                args[1] = response
-                return func(*args, **kwargs)
-
-            except json.JSONDecodeError:
-                pass
+        response = str(response).strip()
+        for parsed in _extract_json_candidates(response):
+            args[1] = parsed
+            result = func(*args, **kwargs)
+            if result is not False:
+                return result
 
         # If all else fails, raise an exception
         emit_agent("info", {"type": "error", "message": "Failed to parse response as JSON"})

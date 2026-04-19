@@ -126,9 +126,11 @@ export async function getBrowserSnapshot(snapshotPath) {
   return data.snapshot;
 }
 
-export async function fetchProjectFiles() {
-  const projectName = localStorage.getItem("selectedProject");
-  const response = await fetch(`${API_BASE_URL}/api/get-project-files?project_name=${projectName}`)
+export async function fetchProjectFiles(projectName = null) {
+  const resolvedProjectName = projectName || localStorage.getItem("selectedProject");
+  const response = await fetch(
+    `${API_BASE_URL}/api/get-project-files?project_name=${encodeURIComponent(resolvedProjectName || "")}`
+  );
   const data = await response.json();
   projectFiles.set(data.files);
   return data.files;
@@ -162,4 +164,12 @@ export async function fetchLogs() {
   const response = await fetch(`${API_BASE_URL}/api/logs`);
   const data = await response.json();
   return data.logs;
+}
+
+export async function getProjectPreviewUrl(projectName) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/project-preview-url?project_name=${encodeURIComponent(projectName)}`
+  );
+  const data = await response.json();
+  return data.preview_url ? encodeURI(data.preview_url) : null;
 }

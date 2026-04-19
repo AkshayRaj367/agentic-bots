@@ -7,6 +7,7 @@ from typing import List, Dict, Union
 from src.config import Config
 from src.llm import LLM
 from src.state import AgentState
+from src.project import ProjectManager
 from src.services.utils import retry_wrapper
 from src.socket_instance import emit_agent
 
@@ -37,6 +38,9 @@ class Feature:
     def validate_response(self, response: str) -> Union[List[Dict[str, str]], bool]:
         response = response.strip()
 
+        if "~~~" not in response:
+            return False
+
         response = response.split("~~~", 1)[1]
         response = response[:response.rfind("~~~")]
         response = response.strip()
@@ -50,12 +54,19 @@ class Feature:
             if line.startswith("File: "):
                 if current_file and current_code:
                     result.append({"file": current_file, "code": "\n".join(current_code)})
-                current_file = line.split("`")[1].strip()
+
+                raw_file = line[len("File: "):].strip()
+                if raw_file.endswith(":"):
+                    raw_file = raw_file[:-1].strip()
+                if raw_file.startswith("`") and raw_file.endswith("`") and len(raw_file) >= 2:
+                    raw_file = raw_file[1:-1].strip()
+
+                current_file = raw_file
                 current_code = []
                 code_block = False
             elif line.startswith("```"):
                 code_block = not code_block
-            else:
+            elif code_block:
                 current_code.append(line)
 
         if current_file and current_code:
@@ -63,12 +74,36 @@ class Feature:
 
         return result
 
+    def _normalize_output_path(self, file_name: str) -> str:
+        cleaned = (file_name or "").strip().strip("`'\"")
+        if cleaned.endswith(":"):
+            cleaned = cleaned[:-1].strip()
+
+        cleaned = cleaned.replace("\\", "/")
+        if "/data/projects/" in cleaned:
+            cleaned = cleaned.split("/data/projects/", 1)[1]
+            parts = cleaned.split("/", 1)
+            cleaned = parts[1] if len(parts) == 2 else parts[0]
+
+        cleaned = cleaned.lstrip("/")
+        normalized = os.path.normpath(cleaned)
+
+        if normalized in {"", "."}:
+            return ""
+        if os.path.isabs(normalized) or normalized.startswith(".."):
+            return ""
+        return normalized
+
     def save_code_to_project(self, response: List[Dict[str, str]], project_name: str):
         file_path_dir = None
-        project_name = project_name.lower().replace(" ", "-")
+        project_root = ProjectManager().get_project_path(project_name)
 
         for file in response:
-            file_path = os.path.join(self.project_dir, project_name, file['file'])
+            relative_path = self._normalize_output_path(file["file"])
+            if not relative_path:
+                continue
+
+            file_path = os.path.join(project_root, relative_path)
             file_path_dir = os.path.dirname(file_path)
             os.makedirs(file_path_dir, exist_ok=True)
     
@@ -78,8 +113,7 @@ class Feature:
         return file_path_dir
 
     def get_project_path(self, project_name: str):
-        project_name = project_name.lower().replace(" ", "-")
-        return f"{self.project_dir}/{project_name}"
+        return ProjectManager().get_project_path(project_name)
 
     def response_to_markdown_prompt(self, response: List[Dict[str, str]]) -> str:
         response = "\n".join([f"File: `{file['file']}`:\n```\n{file['code']}\n```" for file in response])

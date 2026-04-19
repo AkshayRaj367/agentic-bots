@@ -4,7 +4,7 @@ toml
 urllib3
 requests
 colorama
-fastlogging
+# fastlogging replaced by stdlib logging (no MSVC required on Windows)
 Jinja2
 mistletoe
 markdownify

@@ -1,6 +1,7 @@
 import os
 import json
 import zipfile
+import re
 from datetime import datetime
 from typing import Optional
 from src.socket_instance import emit_agent
@@ -30,6 +31,38 @@ class ProjectManager:
             "message": None,
             "timestamp": timestamp
         }
+
+    @staticmethod
+    def _canonical_name(name: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+    def _project_path_candidates(self, project: str):
+        raw = (project or "")
+        trimmed = raw.strip()
+
+        candidates = []
+        for value in {
+            raw,
+            trimmed,
+            trimmed.lower(),
+            trimmed.lower().replace(" ", "-"),
+            trimmed.lower().replace(" ", "_"),
+            trimmed.lower().replace("_", "-"),
+            trimmed.lower().replace("-", "_"),
+            raw.lower().replace(" ", "-"),  # legacy behavior (keeps trailing spaces as '-')
+        }:
+            if value:
+                candidates.append(os.path.join(self.project_path, value))
+
+        # Preserve order but remove duplicates.
+        unique = []
+        seen = set()
+        for path in candidates:
+            key = os.path.normcase(path)
+            if key not in seen:
+                seen.add(key)
+                unique.append(path)
+        return unique
 
     def create_project(self, project: str):
         with Session(self.engine) as session:
@@ -110,7 +143,15 @@ class ProjectManager:
     def get_project_list(self):
         with Session(self.engine) as session:
             projects = session.query(Projects).all()
-            return [project.project for project in projects]
+            unique_projects = []
+            seen = set()
+            for project in projects:
+                display_name = (project.project or "").strip()
+                key = self._canonical_name(display_name)
+                if key and key not in seen:
+                    seen.add(key)
+                    unique_projects.append(display_name)
+            return unique_projects
 
     def get_all_messages_formatted(self, project: str):
         formatted_messages = []
@@ -128,7 +169,27 @@ class ProjectManager:
             return formatted_messages
 
     def get_project_path(self, project: str):
-        return os.path.join(self.project_path, project.lower().replace(" ", "-"))
+        candidates = self._project_path_candidates(project)
+
+        for path in candidates:
+            if os.path.isdir(path):
+                return path
+
+        # Fallback: match existing directories by canonical name.
+        canonical = self._canonical_name(project)
+        if canonical and os.path.isdir(self.project_path):
+            matching = []
+            for name in os.listdir(self.project_path):
+                full_path = os.path.join(self.project_path, name)
+                if os.path.isdir(full_path) and self._canonical_name(name) == canonical:
+                    matching.append(full_path)
+
+            if matching:
+                matching.sort(key=lambda p: len(os.path.basename(p)))
+                return matching[0]
+
+        # Default to first normalized candidate for new projects.
+        return candidates[0] if candidates else self.project_path
 
     def project_to_zip(self, project: str):
         project_path = self.get_project_path(project)
@@ -149,12 +210,11 @@ class ProjectManager:
         if not project_name:
             return []
 
-        project_directory = "-".join(project_name.split(" "))
-        base_path = os.path.abspath(os.path.join(os.getcwd(), 'data', 'projects'))
-        directory = os.path.join(base_path, project_directory)
+        base_path = os.path.abspath(self.project_path)
+        directory = os.path.abspath(self.get_project_path(project_name))
 
-        # Ensure the directory is within the allowed base path
-        if not os.path.exists(directory) or not os.path.commonprefix([directory, base_path]) == base_path:
+        # Ensure the directory is within the allowed base path.
+        if not os.path.exists(directory) or os.path.commonpath([directory, base_path]) != base_path:
             return []
 
         files = []

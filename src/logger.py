@@ -1,6 +1,7 @@
+import logging
+import os
 from functools import wraps
 
-from fastlogging import LogInit
 from flask import request
 
 from src.config import Config
@@ -10,31 +11,36 @@ class Logger:
     def __init__(self, filename="imposter_agent.log"):
         config = Config()
         logs_dir = config.get_logs_dir()
-        self.logger = LogInit(pathName=logs_dir + "/" + filename, console=True, colors=True, encoding="utf-8")
+        os.makedirs(logs_dir, exist_ok=True)
+        self.log_path = os.path.join(logs_dir, filename)
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s [%(levelname)s] %(message)s",
+            handlers=[
+                logging.FileHandler(self.log_path, encoding="utf-8"),
+                logging.StreamHandler(),
+            ],
+        )
+        self.logger = logging.getLogger(filename)
 
     def read_log_file(self) -> str:
-        with open(self.logger.pathName, "r") as file:
+        with open(self.log_path, "r") as file:
             return file.read()
 
     def info(self, message: str):
         self.logger.info(message)
-        self.logger.flush()
 
     def error(self, message: str):
         self.logger.error(message)
-        self.logger.flush()
 
     def warning(self, message: str):
         self.logger.warning(message)
-        self.logger.flush()
 
     def debug(self, message: str):
         self.logger.debug(message)
-        self.logger.flush()
 
     def exception(self, message: str):
         self.logger.exception(message)
-        self.logger.flush()
 
 
 def route_logger(logger: Logger):

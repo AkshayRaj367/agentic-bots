@@ -61,10 +61,25 @@ class Runner:
     
     @validate_responses
     def validate_rerunner_response(self, response: str):
-        if "action" not in response and "response" not in response:
+        if "action" not in response or "response" not in response:
             return False
         else:
             return response
+
+    def _run_command(self, command: str, project_path: str):
+        try:
+            process = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=project_path,
+                text=True,
+                shell=True,
+            )
+            output = process.stdout or ""
+            return output, process.returncode != 0
+        except Exception as e:
+            return f"Failed to run command '{command}': {e}", True
 
     @retry_wrapper
     def run_code(
@@ -79,17 +94,7 @@ class Runner:
         retries = 0
         
         for command in commands:
-            command_set = command.split(" ")
-            command_failed = False
-            
-            process = subprocess.run(
-                command_set,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=project_path
-            )
-            command_output = process.stdout.decode('utf-8')
-            command_failed = process.returncode != 0
+            command_output, command_failed = self._run_command(command, project_path)
             
             new_state = AgentState().new_state()
             new_state["internal_monologue"] = "Running code..."
@@ -126,22 +131,15 @@ class Runner:
                 action = valid_response["action"]
                 
                 if action == "command":
+                    if "command" not in valid_response:
+                        return False
+
                     command = valid_response["command"]
                     response = valid_response["response"]
                     
-                    ProjectManager().add_message_from_devika(project_name, response)
-                    
-                    command_set = command.split(" ")
-                    command_failed = False
-                    
-                    process = subprocess.run(
-                        command_set,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        cwd=project_path
-                    )
-                    command_output = process.stdout.decode('utf-8')
-                    command_failed = process.returncode != 0
+                    ProjectManager().add_message_from_imposter(project_name, response)
+
+                    command_output, command_failed = self._run_command(command, project_path)
                     
                     new_state = AgentState().new_state()
                     new_state["internal_monologue"] = "Running code..."
@@ -171,17 +169,7 @@ class Runner:
                     
                     Patcher(base_model=self.base_model).save_code_to_project(code, project_name)
                     
-                    command_set = command.split(" ")
-                    command_failed = False
-                    
-                    process = subprocess.run(
-                        command_set,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        cwd=project_path
-                    )
-                    command_output = process.stdout.decode('utf-8')
-                    command_failed = process.returncode != 0
+                    command_output, command_failed = self._run_command(command, project_path)
                     
                     new_state = AgentState().new_state()
                     new_state["internal_monologue"] = "Running code..."
@@ -209,6 +197,8 @@ class Runner:
         response = self.llm.inference(prompt, project_name)
         
         valid_response = self.validate_response(response)
+        if not valid_response:
+            return False
         
         self.run_code(
             valid_response,
