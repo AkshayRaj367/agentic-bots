@@ -90,7 +90,7 @@ class Runner:
         conversation: list,
         code_markdown: str,
         system_os: str
-    ):  
+    ):
         retries = 0
         
         for command in commands:
@@ -103,7 +103,10 @@ class Runner:
             new_state["terminal_session"]["output"] = command_output
             AgentState().add_to_current_state(project_name, new_state)
             time.sleep(1)
-            
+
+            if not command_failed:
+                continue
+
             while command_failed and retries < 2:
                 new_state = AgentState().new_state()
                 new_state["internal_monologue"] = "Oh seems like there is some error... :("
@@ -153,11 +156,12 @@ class Runner:
                         retries += 1
                     else:
                         break
+
                 elif action == "patch":
                     response = valid_response["response"]
-                    
+
                     ProjectManager().add_message_from_imposter(project_name, response)
-                    
+
                     code = Patcher(base_model=self.base_model).execute(
                         conversation=conversation,
                         code_markdown=code_markdown,
@@ -166,11 +170,11 @@ class Runner:
                         system_os=system_os,
                         project_name=project_name
                     )
-                    
+
                     Patcher(base_model=self.base_model).save_code_to_project(code, project_name)
-                    
+
                     command_output, command_failed = self._run_command(command, project_path)
-                    
+
                     new_state = AgentState().new_state()
                     new_state["internal_monologue"] = "Running code..."
                     new_state["terminal_session"]["title"] = "Terminal"
@@ -178,11 +182,16 @@ class Runner:
                     new_state["terminal_session"]["output"] = command_output
                     AgentState().add_to_current_state(project_name, new_state)
                     time.sleep(1)
-                    
+
                     if command_failed:
                         retries += 1
                     else:
                         break
+
+            if command_failed and retries >= 2:
+                return False
+
+        return True
 
     @retry_wrapper
     def execute(
@@ -200,7 +209,7 @@ class Runner:
         if not valid_response:
             return False
         
-        self.run_code(
+        run_ok = self.run_code(
             valid_response,
             project_path,
             project_name,
@@ -208,5 +217,8 @@ class Runner:
             code_markdown,
             os_system
         )
+
+        if not run_ok:
+            return False
 
         return valid_response

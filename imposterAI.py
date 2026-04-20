@@ -63,9 +63,10 @@ def test_connect(data):
 @route_logger(logger)
 def data():
     project = manager.get_project_list()
+    project_details = manager.get_project_details()
     models = LLM().list_models()
     search_engines = ["Bing", "Google", "DuckDuckGo"]
-    return jsonify({"projects": project, "models": models, "search_engines": search_engines})
+    return jsonify({"projects": project, "project_details": project_details, "models": models, "search_engines": search_engines})
 
 
 @app.route("/api/messages", methods=["POST"])

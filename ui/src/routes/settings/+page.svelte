@@ -105,16 +105,23 @@
                 {#each Object.entries(settings["API_KEYS"]) as [key, value]}
                   <div class="flex gap-1 items-center">
                     <p class="w-48">{key.toLowerCase()}</p>
-                    <input
-                      type={editMode ? "text" : "password"}
-                      value={settings["API_KEYS"][key]}
-                      on:input={(e) => settings["API_KEYS"][key] = e.target.value}
-                      name={key}
-                      class="p-2 border-2 w-1/2 rounded-lg {editMode
-                        ? ''
-                        : ' text-gray-500'}"
-                      readonly={!editMode}
-                    />
+                    <div class="flex flex-col gap-1 w-1/2">
+                      <input
+                        type={editMode ? "text" : "password"}
+                        value={settings["API_KEYS"][key]}
+                        on:input={(e) => settings["API_KEYS"][key] = e.target.value}
+                        name={key}
+                        class="p-2 border-2 rounded-lg {editMode
+                          ? ''
+                          : ' text-gray-500'}"
+                        readonly={!editMode}
+                      />
+                      {#if key === "CLAUDE"}
+                        <span class="text-[11px] text-gray-500 px-1">
+                          Reserved for later. Groq stays the active default until you add Claude.
+                        </span>
+                      {/if}
+                    </div>
                   </div>
                 {/each}
               </div>

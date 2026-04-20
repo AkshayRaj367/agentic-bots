@@ -45,6 +45,7 @@ class LLM:
         groq_only_mode = _is_configured_key(config.get_groq_api_key())
         if groq_only_mode:
             # User-requested behavior: route exclusively to Groq cloud models.
+            self.models["CLAUDE"] = []
             self.models["GROQ"] = [
                 ("Llama 3.3 70B", "llama-3.3-70b-versatile"),
                 ("Llama 3.1 8B", "llama-3.1-8b-instant"),

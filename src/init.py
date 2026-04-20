@@ -24,9 +24,4 @@ def init_imposter():
     os.makedirs(projects_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
-    from src.bert.sentence import SentenceBert
-
-    logger.info("Loading sentence-transformer BERT models...")
-    prompt = "Light-weight keyword extraction exercise for BERT model loading.".strip()
-    SentenceBert(prompt).extract_keywords()
-    logger.info("BERT model loaded successfully.")
+    logger.info("Prerequisites ready.")

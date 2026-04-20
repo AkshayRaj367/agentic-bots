@@ -37,6 +37,7 @@ subscribeAndStore(selectedSearchEngine, 'selectedSearchEngine', 'select search e
 
 // List related stores
 export const projectList = writable([]);
+export const projectDetails = writable([]);
 export const modelList = writable({});
 export const searchEngineList = writable([]);
 

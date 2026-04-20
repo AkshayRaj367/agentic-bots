@@ -6,10 +6,12 @@
 </script>
 
 <main>
-  <div class="h-dvh w-full flex">
+  <div class="h-dvh w-full flex overflow-hidden">
       <Toaster richColors/>
       <ModeWatcher />
       <Sidebar />
-      <slot />
+      <div class="min-w-0 flex-1 overflow-y-auto">
+        <slot />
+      </div>
   </div>
 </main>

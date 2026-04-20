@@ -4,6 +4,7 @@ import zipfile
 import re
 from datetime import datetime
 from typing import Optional
+from sqlalchemy import text
 from src.socket_instance import emit_agent
 from sqlmodel import Field, Session, SQLModel, create_engine
 from src.config import Config
@@ -12,6 +13,9 @@ from src.config import Config
 class Projects(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project: str
+    description: str = ""
+    tech_stack: str = ""
+    created_at: str = ""
     message_stack_json: str
 
 
@@ -22,6 +26,23 @@ class ProjectManager:
         self.project_path = config.get_projects_dir()
         self.engine = create_engine(f"sqlite:///{sqlite_path}")
         SQLModel.metadata.create_all(self.engine)
+        self._ensure_project_columns()
+
+    def _ensure_project_columns(self):
+        with Session(self.engine) as session:
+            result = session.exec(text("PRAGMA table_info(projects)"))
+            columns = {row[1] for row in result}
+
+            expected_columns = {
+                "description": "TEXT DEFAULT ''",
+                "tech_stack": "TEXT DEFAULT ''",
+                "created_at": "TEXT DEFAULT ''",
+            }
+
+            for column_name, column_definition in expected_columns.items():
+                if column_name not in columns:
+                    session.exec(text(f"ALTER TABLE projects ADD COLUMN {column_name} {column_definition}"))
+            session.commit()
 
     def new_message(self):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -64,9 +85,15 @@ class ProjectManager:
                 unique.append(path)
         return unique
 
-    def create_project(self, project: str):
+    def create_project(self, project: str, description: str = "", tech_stack: str = ""):
         with Session(self.engine) as session:
-            project_state = Projects(project=project, message_stack_json=json.dumps([]))
+            project_state = Projects(
+                project=project,
+                description=description or "",
+                tech_stack=tech_stack or "",
+                created_at=datetime.utcnow().isoformat(timespec="seconds"),
+                message_stack_json=json.dumps([]),
+            )
             session.add(project_state)
             session.commit()
 
@@ -151,6 +178,28 @@ class ProjectManager:
                 if key and key not in seen:
                     seen.add(key)
                     unique_projects.append(display_name)
+            return unique_projects
+
+    def get_project_details(self):
+        with Session(self.engine) as session:
+            projects = session.query(Projects).all()
+            unique_projects = []
+            seen = set()
+
+            for project in projects:
+                display_name = (project.project or "").strip()
+                key = self._canonical_name(display_name)
+                if key and key not in seen:
+                    seen.add(key)
+                    unique_projects.append(
+                        {
+                            "project": display_name,
+                            "description": (project.description or "").strip(),
+                            "tech_stack": (project.tech_stack or "").strip(),
+                            "created_at": (project.created_at or "").strip(),
+                        }
+                    )
+
             return unique_projects
 
     def get_all_messages_formatted(self, project: str):

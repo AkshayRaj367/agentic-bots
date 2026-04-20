@@ -10,6 +10,7 @@ from .feature import Feature
 from .patcher import Patcher
 from .reporter import Reporter
 from .decision import Decision
+from .deployer import Deployer
 
 from src.project import ProjectManager
 from src.state import AgentState
@@ -21,7 +22,6 @@ from src.browser.search import BingSearch, GoogleSearch, DuckDuckGoSearch
 from src.browser import Browser
 from src.browser import start_interaction
 from src.filesystem import ReadCode
-from src.services import Netlify
 from src.documenter.pdf import PDF
 
 import json
@@ -34,6 +34,32 @@ from src.socket_instance import emit_agent
 
 
 class Agent:
+    @staticmethod
+    def _is_implementation_intent(prompt: str) -> bool:
+        text = (prompt or "").strip().lower()
+        if not text:
+            return False
+
+        implementation_phrases = [
+            "continue",
+            "make complete",
+            "make it complete",
+            "complete this",
+            "complete the app",
+            "complete it",
+            "finish it",
+            "finish this",
+            "build it",
+            "create it",
+            "implement",
+            "improve",
+            "modern ui",
+            "doesn't do anything",
+            "doesnt do any thing",
+            "doent do any thing",
+        ]
+        return any(phrase in text for phrase in implementation_phrases)
+
     def __init__(self, base_model: str, search_engine: str, browser: Browser = None):
         if not base_model:
             raise ValueError("base_model is required")
@@ -60,6 +86,7 @@ class Agent:
         self.patcher = Patcher(base_model=base_model)
         self.reporter = Reporter(base_model=base_model)
         self.decision = Decision(base_model=base_model)
+        self.deployer = Deployer()
 
         self.project_manager = ProjectManager()
         self.agent_state = AgentState()
@@ -203,7 +230,11 @@ class Agent:
         conversation = self.project_manager.get_all_messages_formatted(project_name)
         code_markdown = ReadCode(project_name).code_set_to_markdown()
 
-        response, action = self.action.execute(conversation, project_name)
+        if self._is_implementation_intent(prompt):
+            action = "feature"
+            response = "I will continue implementation and apply code changes now."
+        else:
+            response, action = self.action.execute(conversation, project_name)
 
         self.project_manager.add_message_from_imposter(project_name, response)
 
@@ -228,16 +259,7 @@ class Agent:
             )
 
         elif action == "deploy":
-            deploy_metadata = Netlify().deploy(project_name)
-            deploy_url = deploy_metadata["deploy_url"]
-
-            response = {
-                "message": "Done! I deployed your project on Netlify.",
-                "deploy_url": deploy_url
-            }
-            response = json.dumps(response, indent=4)
-
-            self.project_manager.add_message_from_imposter(project_name, response)
+            response = self.deployer.execute(project_name)
 
         elif action == "feature":
             code = self.feature.execute(
@@ -247,7 +269,14 @@ class Agent:
                 project_name=project_name
             )
             print("\nfeature code :: ", code, '\n')
-            self.feature.save_code_to_project(code, project_name)
+            written_files = self.feature.save_code_to_project(code, project_name) if code else 0
+            if not written_files:
+                self.project_manager.add_message_from_imposter(
+                    project_name,
+                    "I tried to continue the implementation, but the model did not return any writable file changes."
+                )
+                self.agent_state.set_agent_active(project_name, False)
+                return
 
         elif action == "bug":
             code = self.patcher.execute(
@@ -259,7 +288,14 @@ class Agent:
                 project_name=project_name
             )
             print("\nbug code :: ", code, '\n')
-            self.patcher.save_code_to_project(code, project_name)
+            written_files = self.patcher.save_code_to_project(code, project_name) if code else 0
+            if not written_files:
+                self.project_manager.add_message_from_imposter(
+                    project_name,
+                    "I tried to patch the bug, but the model did not return any writable file changes."
+                )
+                self.agent_state.set_agent_active(project_name, False)
+                return
 
         elif action == "report":
             markdown = self.reporter.execute(conversation, code_markdown, project_name)
@@ -381,12 +417,20 @@ class Agent:
         )
         print("\ncode :: ", code, '\n')
 
-        self.coder.save_code_to_project(code, project_name)
+        written_files = self.coder.save_code_to_project(code, project_name) if code else 0
+        if not written_files:
+            self.project_manager.add_message_from_imposter(
+                project_name,
+                "I finished the analysis, but the model did not return any writable file changes."
+            )
+            self.agent_state.set_agent_active(project_name, False)
+            self.agent_state.set_agent_completed(project_name, False)
+            return
 
         self.agent_state.set_agent_active(project_name, False)
         self.agent_state.set_agent_completed(project_name, True)
         self.project_manager.add_message_from_imposter(
             project_name,
-            "I have completed the my task. \n"
-            "if you would like me to do anything else, please let me know. \n"
+            "I have completed the requested implementation updates.\n"
+            "If you want any additional changes, tell me what to modify next.\n"
         )

@@ -2,6 +2,7 @@
   import DOMPurify from "dompurify";
   import { emitMessage, socketListener } from "$lib/sockets";
   import { agentState, messages, isSending } from "$lib/store";
+  import { ensurePreferredModel } from "$lib/api";
   import { calculateTokens } from "$lib/token";
   import { onMount } from "svelte";
   import { Icons } from "../icons";
@@ -35,7 +36,7 @@
 
   async function handleSendMessage() {
     const projectName = localStorage.getItem("selectedProject");
-    const selectedModel = localStorage.getItem("selectedModel");
+    const selectedModel = ensurePreferredModel();
     const serachEngine = localStorage.getItem("selectedSearchEngine");
 
     if (!projectName) {

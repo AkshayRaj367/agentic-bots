@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 from src.logger import Logger, route_logger
 from src.config import Config
 from src.project import ProjectManager
+from src.services import Tunnel
 from ..state import AgentState
 
 import os
@@ -130,8 +131,16 @@ def project_preview(project_name: str, asset_path: str = ""):
 def create_project():
     data = request.json
     project_name = data.get("project_name")
-    manager.create_project(secure_filename(project_name))
+    description = data.get("description", "")
+    tech_stack = data.get("tech_stack", "")
+    manager.create_project(secure_filename(project_name), description=description, tech_stack=tech_stack)
     return jsonify({"message": "Project created"})
+
+
+@project_bp.route("/api/projects", methods=["GET"])
+@route_logger(logger)
+def projects():
+    return jsonify({"projects": manager.get_project_details()})
 
 
 @project_bp.route("/api/delete-project", methods=["POST"])
@@ -163,3 +172,25 @@ def download_project_pdf():
     response = make_response(send_file(pdf_path))
     response.headers['Content-Type'] = 'project_bplication/pdf'
     return response
+
+
+@project_bp.route("/api/deploy-project", methods=["POST"])
+@route_logger(logger)
+def deploy_project():
+    data = request.json or {}
+    project_name = secure_filename(data.get("project_name", ""))
+
+    if not project_name:
+        response = jsonify({"error": "Project name is required"})
+        response.status_code = 400
+        return response
+
+    deploy_metadata = Tunnel().deploy(project_name)
+    if isinstance(deploy_metadata, dict) and deploy_metadata.get("error"):
+        response = jsonify(deploy_metadata)
+        response.status_code = 500
+        return response
+
+    deploy_url = deploy_metadata.get("deploy_url") if isinstance(deploy_metadata, dict) else None
+
+    return jsonify({"deploy_url": deploy_url, "raw": deploy_metadata})

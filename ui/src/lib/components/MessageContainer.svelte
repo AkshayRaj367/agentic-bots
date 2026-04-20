@@ -27,7 +27,7 @@
       <div class="flex items-start gap-2 px-2 py-4">
         {#if message.from_imposter}
           <img
-            src="/assets/imposter-avatar.png"
+            src="/assets/imposter-avatar.svg"
             alt="Imposter 101's Avatar"
             class="flex-shrink-0 rounded-full avatar"
             style="width: 28px; height: 28px;"

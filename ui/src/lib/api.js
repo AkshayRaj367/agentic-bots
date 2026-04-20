@@ -3,9 +3,11 @@ import {
   internet,
   modelList,
   projectList,
+  projectDetails,
   messages,
   projectFiles,
   searchEngineList,
+  selectedModel,
 } from "./store";
 import { io } from "socket.io-client";
 
@@ -26,6 +28,34 @@ const getApiBaseUrl = () => {
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || getApiBaseUrl();
 export const socket = io(API_BASE_URL, { autoConnect: false });
 
+function getAllModelNames(models) {
+  return Object.values(models || {})
+    .flat()
+    .map((entry) => entry?.[0])
+    .filter(Boolean);
+}
+
+export function getPreferredModel(models = null) {
+  const sourceModels = models || JSON.parse(localStorage.getItem("defaultData") || "{}").models || {};
+  const availableModels = getAllModelNames(sourceModels);
+  const storedModel = localStorage.getItem("selectedModel");
+
+  if (storedModel && availableModels.includes(storedModel)) {
+    return storedModel;
+  }
+
+  return availableModels[0] || "";
+}
+
+export function ensurePreferredModel(models = null) {
+  const preferredModel = getPreferredModel(models);
+  if (preferredModel) {
+    selectedModel.set(preferredModel);
+    localStorage.setItem("selectedModel", preferredModel);
+  }
+  return preferredModel;
+}
+
 export async function checkServerStatus() {
   try{await fetch(`${API_BASE_URL}/api/status`) ; return true;}
   catch (error) {
@@ -38,20 +68,27 @@ export async function fetchInitialData() {
   const response = await fetch(`${API_BASE_URL}/api/data`);
   const data = await response.json();
   projectList.set(data.projects);
+  projectDetails.set(data.project_details || []);
   modelList.set(data.models);
   searchEngineList.set(data.search_engines);
   localStorage.setItem("defaultData", JSON.stringify(data));
+  ensurePreferredModel(data.models);
 }
 
-export async function createProject(projectName) {
+export async function createProject(projectName, description = "", techStack = "") {
   await fetch(`${API_BASE_URL}/api/create-project`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ project_name: projectName }),
+    body: JSON.stringify({
+      project_name: projectName,
+      description,
+      tech_stack: techStack,
+    }),
   });
   projectList.update((projects) => [...projects, projectName]);
+  await fetchInitialData();
 }
 
 export async function deleteProject(projectName) {
@@ -62,6 +99,14 @@ export async function deleteProject(projectName) {
     },
     body: JSON.stringify({ project_name: projectName }),
   });
+  await fetchInitialData();
+}
+
+export async function fetchProjectDetails() {
+  const response = await fetch(`${API_BASE_URL}/api/projects`);
+  const data = await response.json();
+  projectDetails.set(data.projects || []);
+  return data.projects || [];
 }
 
 export async function fetchMessages() {
@@ -92,7 +137,7 @@ export async function fetchAgentState() {
 
 export async function executeAgent(prompt) {
   const projectName = localStorage.getItem("selectedProject");
-  const modelId = localStorage.getItem("selectedModel");
+  const modelId = ensurePreferredModel();
 
   if (!modelId) {
     alert("Please select the LLM model first.");

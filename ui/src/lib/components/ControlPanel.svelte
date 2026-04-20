@@ -224,18 +224,24 @@
                   >{modelName.toLowerCase()}</span
                 >
                 <div class="flex flex-col gap-[1px] px-6 w-full">
-                  {#each modelItems as models}
-                    <button
-                      class="relative nav-button flex text-start text-sm text-clip hover:bg-black/20 px-2 py-1.5 rounded-md transition-colors 
-                      {selectedModel == models[0] ? 'bg-gray-300': ''}"
-                      on:click|preventDefault={() => selectModel(models[0])}
-                    >
-                      {models[0]}
-                      <span class="tooltip text-[10px] px-2 text-gray-500"
-                        >{models[1]}</span
+                  {#if modelItems.length > 0}
+                    {#each modelItems as models}
+                      <button
+                        class="relative nav-button flex text-start text-sm text-clip hover:bg-black/20 px-2 py-1.5 rounded-md transition-colors 
+                        {selectedModel == models[0] ? 'bg-gray-300': ''}"
+                        on:click|preventDefault={() => selectModel(models[0])}
                       >
-                    </button>
-                  {/each}
+                        {models[0]}
+                        <span class="tooltip text-[10px] px-2 text-gray-500"
+                          >{models[1]}</span
+                        >
+                      </button>
+                    {/each}
+                  {:else}
+                    <div class="px-2 py-1.5 text-xs text-gray-500 rounded-md bg-black/10">
+                      Reserved for later
+                    </div>
+                  {/if}
                 </div>
               </div>
             {/each}

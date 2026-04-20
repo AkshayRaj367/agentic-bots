@@ -6,12 +6,18 @@
   import { selectedProject, isSending } from "$lib/store";
   import { API_BASE_URL, socket, getProjectPreviewUrl, fetchProjectFiles } from "$lib/api";
 
+  export let showDeployControls = true;
+
   let previewUrl = null;
-  let activeView = "screenshot";
+  let activeView = "preview";
+  let currentProject = get(selectedProject);
   let pendingGeneration = false;
   let completionHandled = false;
   let autoOpenBrowserOnComplete = false;
   let previewNotice = "";
+  let deployUrl = null;
+  let deployStatus = "";
+  let isDeploying = false;
 
   function normalizeFilename(filePath) {
     const name = (filePath || "").split("/").pop();
@@ -49,6 +55,8 @@
     if (!projectName || projectName.toLowerCase().includes("select")) {
       previewUrl = null;
       previewNotice = "";
+      deployUrl = null;
+      deployStatus = "";
       if (activeView === "preview") {
         activeView = "screenshot";
       }
@@ -57,6 +65,8 @@
 
     try {
       previewUrl = await getProjectPreviewUrl(projectName);
+      deployUrl = null;
+      deployStatus = "";
       if (previewUrl) {
         activeView = "preview";
         previewNotice = "";
@@ -72,6 +82,7 @@
   }
 
   const unsubscribeProject = selectedProject.subscribe(async (projectName) => {
+    currentProject = projectName;
     await loadPreviewUrl(projectName);
   });
 
@@ -127,6 +138,50 @@
     activeView = "preview";
   }
 
+  async function deployProject() {
+    const projectName = get(selectedProject);
+    if (!projectName || projectName.toLowerCase().includes("select")) {
+      toast.error("Select a project first.");
+      return;
+    }
+
+    if (!confirm("Start a temporary tunnel deployment for this project?")) {
+      return;
+    }
+
+    isDeploying = true;
+    deployStatus = "Starting temporary tunnel...";
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/deploy-project`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_name: projectName }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.details || data.error || "Unable to start temporary tunnel deployment.");
+      }
+
+      deployUrl = data.deploy_url || null;
+      deployStatus = deployUrl
+        ? "Temporary deployment is live."
+        : "Tunnel started, but no public URL was returned.";
+
+      if (deployUrl) {
+        toast.success("Temporary tunnel started.");
+      } else {
+        toast.warning(deployStatus);
+      }
+    } catch (error) {
+      deployStatus = `Deployment failed: ${error.message}`;
+      toast.error(deployStatus);
+    } finally {
+      isDeploying = false;
+    }
+  }
+
   function handleScreenshot(msg) {
     const data = msg["data"];
     const img = document.querySelector(".browser-img");
@@ -171,7 +226,7 @@
       </button>
     {/if}
   </div>
-  {#if previewUrl}
+  {#if currentProject && !currentProject.toLowerCase().includes("select")}
     <div class="px-2 py-1 flex items-center gap-2 border-b border-border bg-browser-window-ribbon">
       <button
         class="text-xs px-2 py-1 rounded-md"
@@ -187,6 +242,15 @@
       >
         agent screenshot
       </button>
+      {#if showDeployControls}
+        <button
+          class="text-xs px-2 py-1 rounded-md"
+          class:bg-secondary={activeView === "deploy"}
+          on:click={() => (activeView = "deploy")}
+        >
+          deploy
+        </button>
+      {/if}
       <label class="ml-auto flex items-center gap-1 text-xs text-foreground/80">
         <input
           type="checkbox"
@@ -203,6 +267,27 @@
         class="preview-frame"
         src={`${API_BASE_URL}${previewUrl}`}
       ></iframe>
+    {:else if showDeployControls && activeView === "deploy"}
+      <div class="deploy-panel">
+        <h3>Create a temporary tunnel deploy?</h3>
+        <p>Uses a project-name subdomain for short-term public access.</p>
+        <button class="deploy-button" on:click={deployProject} disabled={isDeploying}>
+          {isDeploying ? "Starting tunnel..." : "Start temporary deploy"}
+        </button>
+        {#if deployStatus}
+          <p class="deploy-status">{deployStatus}</p>
+        {/if}
+        {#if deployUrl}
+          <a class="deploy-link" href={deployUrl} target="_blank" rel="noreferrer">
+            {deployUrl}
+          </a>
+        {/if}
+      </div>
+    {:else if showDeployControls && activeView === "deploy" && !currentProject}
+      <div class="deploy-panel">
+        <h3>Select a project first</h3>
+        <p>Use the dashboard or project selector to choose a project before deploying.</p>
+      </div>
     {:else if previewNotice}
       <div class="text-gray-400 text-sm text-center mt-5 px-4">{previewNotice}</div>
     {:else if $agentState?.browser_session.screenshot}
@@ -232,5 +317,51 @@
     height: 100%;
     border: 0;
     background: white;
+  }
+
+  .deploy-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    height: 100%;
+    padding: 1.25rem;
+    color: #dbe7ff;
+  }
+
+  .deploy-panel h3 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .deploy-panel p {
+    margin: 0;
+    color: #9fb0c9;
+  }
+
+  .deploy-button {
+    width: fit-content;
+    padding: 0.75rem 1rem;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #2f80ed, #1f5fbe);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .deploy-button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .deploy-status {
+    font-size: 0.92rem;
+    color: #cfe0ff;
+  }
+
+  .deploy-link {
+    word-break: break-all;
+    color: #7fb3ff;
+    text-decoration: underline;
   }
 </style>

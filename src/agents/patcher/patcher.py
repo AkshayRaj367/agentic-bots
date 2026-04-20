@@ -99,6 +99,7 @@ class Patcher:
 
     def save_code_to_project(self, response: List[Dict[str, str]], project_name: str):
         file_path_dir = None
+        written_files = 0
         project_root = ProjectManager().get_project_path(project_name)
 
         for file in response:
@@ -112,8 +113,9 @@ class Patcher:
     
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(file["code"])
+            written_files += 1
     
-        return file_path_dir
+        return written_files
     def get_project_path(self, project_name: str):
         return ProjectManager().get_project_path(project_name)
 
