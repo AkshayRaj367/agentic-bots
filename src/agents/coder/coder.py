@@ -40,8 +40,15 @@ class Coder:
         if "~~~" not in response:
             return False
 
-        response = response.split("~~~", 1)[1]
-        response = response[:response.rfind("~~~")]
+        # Find the first and last ~~~ markers and extract only content between them
+        first_marker = response.find("~~~")
+        last_marker = response.rfind("~~~")
+        
+        if first_marker == last_marker or first_marker == -1:
+            return False
+        
+        # Extract content between first and last ~~~ markers, stripping thinking/reasoning before first marker
+        response = response[first_marker + 3:last_marker]
         response = response.strip()
 
         result = []
@@ -97,6 +104,9 @@ class Coder:
         file_path_dir = None
         written_files = 0
         project_root = ProjectManager().get_project_path(project_name)
+        
+        # Ensure project root exists
+        os.makedirs(project_root, exist_ok=True)
 
         for file in response:
             relative_path = self._normalize_output_path(file["file"])
@@ -105,11 +115,23 @@ class Coder:
 
             file_path = os.path.join(project_root, relative_path)
             file_path_dir = os.path.dirname(file_path)
-            os.makedirs(file_path_dir, exist_ok=True)
+            
+            # Ensure directory exists before writing
+            if file_path_dir and not os.path.exists(file_path_dir):
+                try:
+                    os.makedirs(file_path_dir, exist_ok=True)
+                except Exception as e:
+                    logger.error(f"Failed to create directory {file_path_dir}: {str(e)}")
+                    continue
     
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(file["code"])
-            written_files += 1
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(file["code"])
+                written_files += 1
+                logger.info(f"Saved file: {file_path}")
+            except Exception as e:
+                logger.error(f"Failed to save file {file_path}: {str(e)}")
+                continue
         
         return written_files
 

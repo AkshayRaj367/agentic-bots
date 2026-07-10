@@ -1,6 +1,10 @@
 # ImposterAI Architecture
 
 ImposterAI is an advanced AI software engineer that can understand high-level human instructions, break them down into steps, research relevant information, and write code to achieve a given objective. This document provides a detailed technical overview of ImposterAI's system architecture and how the various components work together.
+.\.venv\Scripts\python imposterAI.py
+
+cd ui
+"C:\Program Files\nodejs\npm.cmd" run dev
 
 ## Table of Contents
 

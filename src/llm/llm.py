@@ -4,13 +4,40 @@ import tiktoken
 from typing import List, Tuple
 
 from src.socket_instance import emit_agent
-from .ollama_client import Ollama
-from .claude_client import Claude
-from .openai_client import OpenAi
-from .gemini_client import Gemini
-from .mistral_client import MistralAi
-from .groq_client import Groq
-from .lm_studio_client import LMStudio
+try:
+    from .ollama_client import Ollama
+except Exception:
+    Ollama = None
+
+try:
+    from .claude_client import Claude
+except Exception:
+    Claude = None
+
+try:
+    from .openai_client import OpenAi
+except Exception:
+    OpenAi = None
+
+try:
+    from .gemini_client import Gemini
+except Exception:
+    Gemini = None
+
+try:
+    from .mistral_client import MistralAi
+except Exception:
+    MistralAi = None
+
+try:
+    from .groq_client import Groq
+except Exception:
+    Groq = None
+
+try:
+    from .lm_studio_client import LMStudio
+except Exception:
+    LMStudio = None
 
 from src.state import AgentState
 
@@ -105,22 +132,23 @@ class LLM:
                 ("GEMMA 7B", "gemma-7b-it"),
             ]
 
-        global ollama
-        if ollama is None:
-            ollama = Ollama()
+        if Ollama is not None:
+            global ollama
+            if ollama is None:
+                ollama = Ollama()
 
-        if ollama.client:
-            ollama_models = []
-            for model in ollama.models:
-                model_name = getattr(model, "name", None) or getattr(model, "model", None)
-                if not model_name:
-                    try:
-                        model_name = model.get("name") or model.get("model")
-                    except Exception:
-                        model_name = None
-                if model_name:
-                    ollama_models.append((model_name, model_name))
-            self.models["OLLAMA"] = ollama_models
+            if ollama and ollama.client:
+                ollama_models = []
+                for model in ollama.models:
+                    model_name = getattr(model, "name", None) or getattr(model, "model", None)
+                    if not model_name:
+                        try:
+                            model_name = model.get("name") or model.get("model")
+                        except Exception:
+                            model_name = None
+                    if model_name:
+                        ollama_models.append((model_name, model_name))
+                self.models["OLLAMA"] = ollama_models
 
     def list_models(self) -> dict:
         return self.models
@@ -176,7 +204,7 @@ class LLM:
             return ollama
 
         model_builders = {
-            "OLLAMA": _get_ollama,
+            "OLLAMA": _get_ollama if Ollama is not None else None,
             "CLAUDE": Claude,
             "OPENAI": OpenAi,
             "GOOGLE": Gemini,
@@ -184,6 +212,8 @@ class LLM:
             "GROQ": Groq,
             "LM_STUDIO": LMStudio,
         }
+
+        model_builders = {k: v for k, v in model_builders.items() if v is not None}
 
         try:
             import concurrent.futures
